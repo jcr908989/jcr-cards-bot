@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import streamlit as st
 
 st.title("🤖 JCR Cards Bot - Panel 24/7")
-st.subheader("Control de Stock Automático")
+st.subheader("Control de Stock por Botón")
 
 token = st.text_input("Telegram Bot Token", type="password")
 chat_id = st.text_input("Telegram Chat ID")
@@ -40,9 +40,6 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
     }
-    
-    palabras_stock = ["add to cart", "añadir al carrito", "añadir a la cesta", "comprar", "pre-order", "preventa", "in den warenkorb", "en stock", "disponible"]
-    palabras_no_stock = ["sold out", "out of stock", "agotado", "ausverkauft", "nicht verfügbar", "próximamente"]
 
     resultados = []
     for url in lista_urls:
@@ -51,15 +48,16 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code == 200:
                 texto = response.text.lower()
-                tiene_stock = any(p in texto for p in palabras_stock)
-                esta_agotado = any(p in texto for p in palabras_no_stock)
                 
-                if tiene_stock and not esta_agotado:
-                    resultados.append(f"🟢 DISPONIBLE: {nombre_corto}")
+                # Buscamos si sigue el texto de venta bloqueada o agotado típico de TCGFactory
+                bloqueado = "venta bloqueada" in texto or "agotado" in texto or "out of stock" in texto
+                
+                if not bloqueado:
+                    resultados.append(f"🟢 ¡BOTÓN HABILITADO / AÑADIR!: {nombre_corto}")
                     if enviar_alerta:
-                        enviar_telegram(f"🚨 ¡STOCK O PREVENTA DETECTADA! 🚨\n\n{url}", t_token, t_chat)
+                        enviar_telegram(f"🚨 ¡EL BOTÓN YA DEJA COMPRAR! 🚨\n\n{url}", t_token, t_chat)
                 else:
-                    resultados.append(f"🔴 AGOTADO: {nombre_corto}")
+                    resultados.append(f"🔴 BLOQUEADO / AGOTADO: {nombre_corto}")
             else:
                 resultados.append(f"⚠️ ERROR HTTP {response.status_code}: {nombre_corto}")
         except Exception as e:
@@ -71,7 +69,6 @@ def bucle_verificacion(t_token, t_chat, lista_urls, segundos_espera):
         verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=True)
         time.sleep(segundos_espera)
 
-# Botones de acción organizados
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -94,7 +91,7 @@ with col2:
     if st.button("🔍 Comprobar Ahora"):
         urls_lista = [linea.strip() for linea in urls_texto.split("\n") if linea.strip()]
         if urls_lista:
-            with st.spinner("Comprobando enlaces..."):
+            with st.spinner("Comprobando el estado del botón..."):
                 res = verificar_urls(urls_lista, token, chat_id, enviar_alerta=False)
             st.markdown("### Resultados de la comprobación:")
             for r in res:
