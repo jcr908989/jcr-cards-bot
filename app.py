@@ -41,6 +41,11 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
     }
 
+    # Palabras que indican que SÍ se puede comprar / añadir
+    palabras_positivo = ["añadir", "comprar", "add to cart", "pre-order", "preventa", "in den warenkorb", "disponible"]
+    # Palabras que indican bloqueo o falta de stock
+    palabras_bloqueado = ["venta bloqueada", "agotado", "out of stock", "sold out", "ausverkauft"]
+
     resultados = []
     for url in lista_urls:
         nombre_corto = url.split("/")[2] if len(url.split("/")) > 2 else url
@@ -49,15 +54,16 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
             if response.status_code == 200:
                 texto = response.text.lower()
                 
-                # Detecta si sigue bloqueado o agotado
-                bloqueado = "venta bloqueada" in texto or "agotado" in texto or "out of stock" in texto
+                tiene_boton_añadir = any(p in texto for p in palabras_positivo)
+                esta_bloqueado = any(p in texto for p in palabras_bloqueado)
                 
-                if not bloqueado:
-                    resultados.append(f"🟢 ¡BOTÓN HABILITADO / AÑADIR!: {nombre_corto}")
+                # Se pone en verde solo si encuentra palabras de compra y NO está bloqueado
+                if tiene_boton_añadir and not esta_bloqueado:
+                    resultados.append(f"🟢 ¡BOTÓN DE AÑADIR DISPONIBLE!: {nombre_corto}")
                     if enviar_alerta:
-                        enviar_telegram(f"🚨 ¡EL BOTÓN YA DEJA COMPRAR! 🚨\n\n{url}", t_token, t_chat)
+                        enviar_telegram(f"🚨 ¡YA SE PUEDE AÑADIR / COMPRAR! 🚨\n\n{url}", t_token, t_chat)
                 else:
-                    resultados.append(f"🟠 BLOQUEADO / AGOTADO: {nombre_corto}")
+                    resultados.append(f"🟠 BLOQUEADO / NO DISPONIBLE: {nombre_corto}")
             else:
                 resultados.append(f"⚠️ ERROR HTTP {response.status_code}: {nombre_corto}")
         except Exception as e:
