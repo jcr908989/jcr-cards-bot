@@ -40,7 +40,7 @@ def bucle_verificacion(t_token, t_chat, url):
             print(f"Error comprobando stock: {e}")
         
         # Espera 10 minutos antes de la siguiente comprobación
-        time.sleep(600)
+        time.sleep(60)
 
 # Botones de control en la interfaz
 col1, col2 = st.columns(2)
