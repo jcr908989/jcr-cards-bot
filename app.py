@@ -49,7 +49,7 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
             if response.status_code == 200:
                 texto = response.text.lower()
                 
-                # Buscamos si sigue el texto de venta bloqueada o agotado típico de TCGFactory
+                # Detecta si sigue bloqueado o agotado
                 bloqueado = "venta bloqueada" in texto or "agotado" in texto or "out of stock" in texto
                 
                 if not bloqueado:
@@ -57,7 +57,7 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
                     if enviar_alerta:
                         enviar_telegram(f"🚨 ¡EL BOTÓN YA DEJA COMPRAR! 🚨\n\n{url}", t_token, t_chat)
                 else:
-                    resultados.append(f"🔴 BLOQUEADO / AGOTADO: {nombre_corto}")
+                    resultados.append(f"🟠 BLOQUEADO / AGOTADO: {nombre_corto}")
             else:
                 resultados.append(f"⚠️ ERROR HTTP {response.status_code}: {nombre_corto}")
         except Exception as e:
