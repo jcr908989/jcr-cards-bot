@@ -41,29 +41,34 @@ def verificar_urls(lista_urls, t_token, t_chat, enviar_alerta=False):
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
     }
 
-    # Palabras que indican que SÍ se puede comprar / añadir
-    palabras_positivo = ["añadir", "comprar", "add to cart", "pre-order", "preventa", "in den warenkorb", "disponible"]
-    # Palabras que indican bloqueo o falta de stock
-    palabras_bloqueado = ["venta bloqueada", "agotado", "out of stock", "sold out", "ausverkauft"]
-
     resultados = []
     for url in lista_urls:
         nombre_corto = url.split("/")[2] if len(url.split("/")) > 2 else url
         try:
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code == 200:
-                texto = response.text.lower()
+                soup = BeautifulSoup(response.text, 'html.parser')
                 
-                tiene_boton_añadir = any(p in texto for p in palabras_positivo)
-                esta_bloqueado = any(p in texto for p in palabras_bloqueado)
+                # Buscamos específicamente en botones, enlaces de compra o contenedores de producto
+                # Extraemos todo el texto de los elementos interactivos o principales de compra
+                elementos_compra = soup.find_all(['button', 'a', 'div', 'span'], class_=lambda x: x and ('cart' in x or 'btn' in x or 'comprar' in x or 'block' in x or 'product' in x))
+                texto_botones = " ".join([el.get_text(strip=True).lower() for el in elementos_compra])
                 
-                # Se pone en verde solo si encuentra palabras de compra y NO está bloqueado
-                if tiene_boton_añadir and not esta_bloqueado:
+                # Si no encuentra elementos específicos, recurrimos a buscar en todo el body pero con precisión
+                if not texto_botones:
+                    texto_botones = response.text.lower()
+
+                # Comprobaciones estrictas
+                esta_bloqueado = "venta bloqueada" in texto_botones or "agotado" in texto_botones or "out of stock" in texto_botones or "sold out" in texto_botones
+                tiene_añadir = "añadir" in texto_botones or "comprar" in texto_botones or "add to cart" in texto_botones or "pre-order" in texto_botones or "preventa" in texto_botones
+                
+                # Si pone añadir/comprar y NO está marcado como bloqueado/agotado
+                if tiene_añadir and not esta_bloqueado:
                     resultados.append(f"🟢 ¡BOTÓN DE AÑADIR DISPONIBLE!: {nombre_corto}")
                     if enviar_alerta:
-                        enviar_telegram(f"🚨 ¡YA SE PUEDE AÑADIR / COMPRAR! 🚨\n\n{url}", t_token, t_chat)
+                        enviar_telegram(f"🚨 ¡YA SE PUEDE COMPRAR! 🚨\n\n{url}", t_token, t_chat)
                 else:
-                    resultados.append(f"🟠 BLOQUEADO / NO DISPONIBLE: {nombre_corto}")
+                    resultados.append(f"🟠 BLOQUEADO (VENTA BLOQUEADA): {nombre_corto}")
             else:
                 resultados.append(f"⚠️ ERROR HTTP {response.status_code}: {nombre_corto}")
         except Exception as e:
@@ -97,7 +102,7 @@ with col2:
     if st.button("🔍 Comprobar Ahora"):
         urls_lista = [linea.strip() for linea in urls_texto.split("\n") if linea.strip()]
         if urls_lista:
-            with st.spinner("Comprobando el estado del botón..."):
+            with st.spinner("Comprobando el botón con BeautifulSoup..."):
                 res = verificar_urls(urls_lista, token, chat_id, enviar_alerta=False)
             st.markdown("### Resultados de la comprobación:")
             for r in res:
