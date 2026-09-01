@@ -1,4 +1,3 @@
-
 import time
 import threading
 import requests
@@ -42,7 +41,25 @@ def enviar_telegram(mensaje, t_token, t_chat):
         print(f"Error: {e}")
 
 def bucle_verificacion(t_token, t_chat, lista_urls, segundos_espera):
-    headers = {"User-Agent": "Mozilla/5.0"}
+    # Cabecera simulando un navegador real para evitar bloqueos
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
+    }
+    
+    # Palabras que indican que SÍ hay stock o preventa disponible
+    palabras_stock = [
+        "add to cart", "añadir al carrito", "añadir a la cesta", 
+        "comprar", "pre-order", "preventa", "in den warenkorb", 
+        "en stock", "disponible"
+    ]
+    
+    # Palabras que confirman que definitivamente NO hay stock
+    palabras_no_stock = [
+        "sold out", "out of stock", "agotado", 
+        "ausverkauft", "nicht verfügbar", "próximamente"
+    ]
+
     while st.session_state.corriendo:
         for url in lista_urls:
             if not st.session_state.corriendo:
@@ -51,12 +68,16 @@ def bucle_verificacion(t_token, t_chat, lista_urls, segundos_espera):
                 response = requests.get(url, headers=headers, timeout=15)
                 if response.status_code == 200:
                     texto = response.text.lower()
-                    if "agotado" not in texto and "out of stock" not in texto and "sold out" not in texto:
-                        enviar_telegram(f"🚨 ¡POSIBLE STOCK DISPONIBLE! 🚨\n\n{url}", t_token, t_chat)
+                    
+                    # Verificamos si encuentra palabras de compra y evita falsos positivos de agotado
+                    tiene_stock = any(p in texto for p in palabras_stock)
+                    esta_agotado = any(p in texto for p in palabras_no_stock)
+                    
+                    if tiene_stock and not esta_agotado:
+                        enviar_telegram(f"🚨 ¡STOCK O PREVENTA DETECTADA! 🚨\n\n{url}", t_token, t_chat)
             except Exception as e:
                 print(f"Error comprobando stock de {url}: {e}")
         
-        # Espera el tiempo configurado en la interfaz antes de volver a comprobar
         time.sleep(segundos_espera)
 
 # Botones de control en la interfaz
